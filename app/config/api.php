@@ -145,7 +145,7 @@ $config['users_table'] = 'users';
 | a browser, so set your real domain in production.
 |
 */
-$config['allow_origin'] = array_filter(array_map('trim', explode(',', getenv('FRONTEND_ORIGIN') ?: 'http://localhost:5173,http://127.0.0.1:5173')));
+$config['allow_origin'] = array_filter(array_map('trim', explode(',', getenv('FRONTEND_ORIGIN') ?: 'http://localhost:5173,https://frontend-hpo6.onrender.com')));
 
 /*
 |--------------------------------------------------------------------------
