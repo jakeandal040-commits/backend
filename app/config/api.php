@@ -145,7 +145,13 @@ $config['users_table'] = 'users';
 | a browser, so set your real domain in production.
 |
 */
-$config['allow_origin'] = array_filter(array_map('trim', explode(',', getenv('FRONTEND_ORIGIN') ?: 'http://localhost:5173,https://frontend-hpo6.onrender.com')));
+// This application's deployed frontend must remain allowed even when a copied
+// local FRONTEND_ORIGIN setting contains only localhost origins.
+$frontend_origins = array_filter(array_map('trim', explode(',', getenv('FRONTEND_ORIGIN') ?: 'http://localhost:5173,http://127.0.0.1:5173,http://localhost')));
+$config['allow_origin'] = array_values(array_unique(array_merge(
+    ['https://frontend-hpo6.onrender.com'],
+    $frontend_origins
+)));
 
 /*
 |--------------------------------------------------------------------------

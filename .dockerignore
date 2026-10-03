@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+!.env.example
+.local
+node_modules
+frontend
+docs/screenshots
+runtime/*
+!runtime/.htaccess
+!runtime/index.html
+*.pem
+*.log

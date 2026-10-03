@@ -376,6 +376,8 @@ class Api
     public function respond($data, $code = 200)
     {
         http_response_code($code);
+        if ($code === 204) exit;
+        header('Content-Type: application/json; charset=utf-8');
         echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }
