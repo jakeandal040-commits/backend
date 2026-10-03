@@ -1,6 +1,10 @@
 AddDefaultCharset UTF-8
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    RewriteRule ^(?:app|scheme|console|runtime|scripts)(?:/|$) - [F,L]
+    RewriteRule ^frontend/(?!dist(?:/|$)) - [F,L]
+    RewriteRule ^$ /lab6/frontend/dist/ [R=302,L]
+    RewriteRule ^(?:public|frontend/dist)(?:/|$) - [L]
 
     # --------------------------------------------------
     # Allow index.php

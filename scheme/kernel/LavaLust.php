@@ -48,7 +48,7 @@ if (file_exists(ROOT_DIR . '.env')) {
         $line = trim($line);
 
         // Skip comments and lines without =
-        if ($line[0] === '#' || !str_contains($line, '=')) continue;
+        if ($line === '' || $line[0] === '#' || !str_contains($line, '=')) continue;
 
         [$key, $value] = explode('=', $line, 2);
         $key   = trim($key);
@@ -62,6 +62,7 @@ if (file_exists(ROOT_DIR . '.env')) {
             $value = substr($value, 1, -1);
         }
 
+        if (getenv($key) !== false) continue;
         putenv("$key=$value");
         $_ENV[$key] = $_SERVER[$key] = $value;
     }

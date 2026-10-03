@@ -24,3 +24,10 @@ runtime/*
 
 # OS
 Thumbs.db
+node_modules/
+frontend/dist/
+.env.*
+!.env.example
+!frontend/.env.example
+*.pem
+.local/

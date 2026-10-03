@@ -1,284 +1,146 @@
-# LavaLust Framework
+﻿# Stockroom — Laboratory Exercise No. 6
 
-> A lightweight, fast PHP framework built for developers who want clean MVC architecture without unnecessary complexity or performance overhead.
+Product management using **React + LavaLust API + MySQL**. The current setup runs on **WAMP**, as requested. No cloud accounts are needed to use it locally.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![PHP Version](https://img.shields.io/badge/PHP-%3E%3D7.4-8892BF)](https://www.php.net/)
-[![GitHub Stars](https://img.shields.io/github/stars/ronmarasigan/lavalust?style=flat)](https://github.com/ronmarasigan/lavalust/stargazers)
+## Open the app
 
----
+Start WAMP's Apache and MySQL services, then open:
 
-## Overview
+**http://localhost/lab6/**
 
-**LavaLust** is an open-source PHP framework that follows the **MVC (Model–View–Controller)** architectural pattern. It is designed for developers who need a structured, maintainable, and scalable foundation — without the bloat of heavier modern frameworks.
+Local demo login:
 
-Whether you are building a simple web application, a REST API, or a teaching project, LavaLust provides the right tools with minimal friction.
+- Username: `admin`
+- Password: `Stockroom123!`
 
----
+You can also create your own account from the login page. Admins can create, view, edit, and delete products. Registered users have view-only access to the shared product inventory. The demo includes six sample products; the normal CRUD interface lets you change or delete them.
+
+## Set up another local copy
+
+Use PHP 8.2 or newer (WAMP's PHP 8.5 is supported), with `pdo_mysql` and `mbstring`. Put the project in `C:\wamp64\www\lab6`, start WAMP, and run these commands from the project root:
+
+```powershell
+php scripts/setup-local.php
+php lava migration run
+php scripts/seed-demo.php
+npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run build
+```
+
+`setup-local.php` creates a `.env` with random authentication secrets and the project's `lab6_stockroom` database. It uses local MySQL on port 3306 with the WAMP `root` user and an empty password. If your MySQL configuration differs, update `.env` before running the setup script. The script preserves an existing `.env` and does not modify other databases.
+
+The demo seeder is optional. It only runs against local development databases, preserves an existing demo user's password, and only adds products if the inventory is empty.
+
+The built React app is served by Apache from `frontend/dist`. Rebuild after changing the frontend. The root URL redirects to that folder. If you rename the project folder, update the redirect in `.htaccess`, the proxy in `frontend/vite.config.js`, and the production local API fallback in `frontend/src/api.js`.
+
+## Frontend development
+
+```powershell
+npm.cmd --prefix frontend run dev
+```
+
+Open **http://localhost:5173**. Keep WAMP running; Vite proxies `/api` to `http://localhost/lab6/public/api`. The standalone `php lava serve` server is optional. If you use it on port 3000, change the proxy target to `http://127.0.0.1:3000`.
 
 ## Features
 
-| Feature | Description |
-|---|---|
-| **MVC Architecture** | Clean separation of Models, Views, and Controllers for organized, maintainable code |
-| **Built-in Routing** | Flexible URL routing that maps requests to controllers with minimal configuration |
-| **Libraries & Helpers** | Reusable components for sessions, forms, validation, and database access |
-| **Modular Design** | Scalable structure that supports clean organization as your application grows |
-| **REST API Support** | First-class support for building RESTful APIs using LavaLust conventions |
-| **ORM-like Models** | Simplified, readable database interaction without a heavy abstraction layer |
+- Registration, username/email login, logout, and session restoration after reload.
+- JWT access tokens with refresh token rotation through the LavaLust API library.
+- ProductMiddleware protects every product route: authenticated users can read; only active admins can create, update, or delete.
+- ProductModel handles product database operations with an allowlist of writable fields.
+- Product name, description, price, quantity, and creation timestamp.
+- Add and edit forms with frontend and backend validation.
+- Delete confirmation with an option to cancel.
+- Product search, sorting, stock filters, and inventory summaries.
+- Responsive desktop and mobile interface, loading states, errors, and success messages.
+- Prepared SQL statements, bcrypt passwords, login rate limiting, and environment-based secrets.
 
----
+Tokens are stored in the current tab's `sessionStorage`, and are sent in the `Authorization: Bearer` header. Logout revokes the refresh token and clears the frontend session. An already issued access token lasts up to 15 minutes. Users, refresh tokens, and products are stored in MySQL; React never connects directly to the database.
 
-## Requirements
+## Database and migrations
 
-- PHP 7.4 or higher
-- A web server with URL rewriting support (Apache `.htaccess` or Nginx config)
-- Composer (optional, for dependency management)
+Open **http://localhost/phpmyadmin/** and select `lab6_stockroom`.
 
----
+Tables: `migrations`, `users`, `refresh_tokens`, `products`.
 
-## Installation
+The product schema follows the laboratory document: `id INT AUTO_INCREMENT PRIMARY KEY`, `product_name VARCHAR(100)`, `description TEXT`, `price DECIMAL(10,2)`, `quantity INT`, and `created_at TIMESTAMP`. Prices and quantities cannot be negative. Schema setup uses versioned LavaLust migrations, with InnoDB selected explicitly for compatibility with WAMP's MyISAM default.
 
-**Clone the repository:**
-
-```bash
-git clone https://github.com/ronmarasigan/lavalust.git
-cd lavalust
+```powershell
+php lava migration run
+php lava migration status
+php lava migration create-migration your_migration_name
+php lava migration rollback
+php lava migration rollback-all
+php lava migration refresh
 ```
 
-**Or download a release directly:**
+**Rollback and refresh remove table data.** Use them only when you intend to reset your development schema. This framework's `rollback` removes the latest migration, rather than an entire batch.
 
-```bash
-wget https://github.com/ronmarasigan/lavalust/archive/refs/heads/main.zip
-unzip main.zip
-```
+The custom CLI command is in `app/commands/Migration.php`. The handout uses `app/command`, but this installed LavaLust version discovers commands in `app/commands`.
 
-Configure your web server to point to the project root and ensure `mod_rewrite` (Apache) or equivalent is enabled.
+The migration controller and all six handout routes are implemented. Browser migration routes are disabled by default. To use them locally, set `MIGRATION_ENABLED=true` in `.env`: `/create-migration/{name}`, `/migrate`, `/rollback`, `/rollback-all`, `/refresh`, `/status`, under `http://localhost/lab6/public`. These routes remain disabled when `APP_ENV=production`; CLI migrations still work.
 
----
+## API
 
-## Quick Start
+Local base: `http://localhost/lab6/public/api`.
 
-### 1. Define a Route
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Database health check |
+| POST | `/auth/register` | Create account (`username`, `email`, `password`) |
+| POST | `/auth/login` | Sign in (`identity`, `password`) |
+| GET | `/auth/me` | Current authenticated user |
+| POST | `/auth/refresh` | Rotate token pair (`refresh_token`) |
+| POST | `/auth/logout` | Revoke refresh token (`refresh_token`) |
+| GET | `/products` | List products |
+| GET | `/products/{id}` | Retrieve one product |
+| POST | `/products` | Create product |
+| PUT | `/products/{id}` | Replace product fields |
+| PATCH | `/products/{id}` | Update selected fields |
+| DELETE | `/products/{id}` | Delete product |
 
-**File:** `app/config/routes.php`
+Create/PUT body example:
 
-```php
-$router->get('/', 'Welcome::index');
-$router->get('/about', 'Welcome::about');
-$router->post('/users/store', 'Users::store');
-```
-
-### 2. Create a Controller
-
-**File:** `app/controllers/Welcome.php`
-
-```php
-<?php
-
-class Welcome extends Controller
+```json
 {
-    public function index()
-    {
-        $data['title'] = 'Home';
-        $this->call->view('welcome', $data);
-    }
-
-    public function about()
-    {
-        $this->call->view('about');
-    }
+  "product_name": "Canvas Tote Bag",
+  "description": "Natural cotton canvas",
+  "price": "349.00",
+  "quantity": 48
 }
 ```
 
-### 3. Create a View
+Success and error responses use LavaLust's `Api::respond` / `Api::respond_error`. Successful refresh responses wrap the token pair in `tokens`, which the frontend handles. Validation returns HTTP 422 with field errors, missing products return 404, unauthenticated product access returns 401, and non-admin writes return 403. Roles are read from MySQL on each product request, so changing a stored role takes effect immediately. Public registration always creates a user account and ignores supplied roles.
 
-**File:** `app/views/welcome.php`
+## Verification
 
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title><?= $title ?></title>
-</head>
-<body>
-    <h1>Welcome to LavaLust Framework</h1>
-    <p>Lightweight. Fast. MVC.</p>
-</body>
-</html>
+```powershell
+node scripts/test-api.mjs
+php scripts/test-product-roles.php
+npm.cmd --prefix frontend run lint
+npm.cmd --prefix frontend run build
+php lava migration status
 ```
 
-### 4. Create a Model
+The API integration script uses the local demo login (override with `TEST_API_URL`, `TEST_USERNAME`, and `TEST_PASSWORD`). It creates and removes its own test product. It checks unauthenticated CRUD rejection, invalid login, registration validation/duplicates, login, profile, product creation, exact text preservation, list, PUT, PATCH, invalid inputs, deletion, missing products, refresh rotation, logout, and CORS.
 
-**File:** `app/models/User_model.php`
+The role integration test creates temporary admin/user accounts and removes them afterward. It checks admin CRUD, user list/detail access, HTTP 403 for every non-admin mutation, registration role escalation rejection, forged tokens, and protected product fields. Browser role checks also passed: user mutation controls remain hidden after reload and admin controls are available.
 
-```php
-<?php
+A browser verification also passed login, add/edit/delete, cancel deletion, search, stock filtering, session restoration, mobile sizing, logout, and JavaScript error checks. Captured screenshots:
 
-class User_model extends Model
-{
-    protected $table = 'users';
+- [Login](docs/screenshots/01-login.png)
+- [Product list](docs/screenshots/02-products.png)
+- [Add product](docs/screenshots/03-add-product.png)
+- [Edit product](docs/screenshots/04-edit-product.png)
+- [Delete confirmation](docs/screenshots/05-delete-product.png)
+- [Mobile view](docs/screenshots/06-mobile.png)
+- [User view-only interface](docs/screenshots/07-user-view.png)
 
-    public function getAll()
-    {
-        return $this->db->table($this->table)->get()->getResult();
-    }
+## Aiven and Render later
 
-    public function findById(int $id)
-    {
-        return $this->db->table($this->table)
-                        ->where('id', $id)
-                        ->get()
-    }
-}
-```
+Cloud deployment has **not** been performed. The current app uses WAMP MySQL, following the updated request.
 
----
+The backend reads database credentials from environment variables and supports a verified MySQL TLS connection through `DB_SSL_CA` and `DB_SSL_REQUIRED=true`. For Aiven, use your own host, port, username, password, database, and downloaded CA certificate. On Render, a secret file can hold the CA certificate. Set `APP_ENV=production`, strong distinct `JWT_SECRET` and `REFRESH_TOKEN_KEY`, and `FRONTEND_ORIGIN` to your deployed frontend's origin. Do not upload the local `.env` or use the local demo account on a public service.
 
-## Project Structure
+For a separately hosted React frontend, set `VITE_API_URL=https://your-api.onrender.com/api` **before** building. The frontend only uses this public API URL; database secrets belong in the backend environment. Render can host PHP through Docker and the React build as a static site (`frontend/dist`). Repository URLs, cloud URLs, and the Aiven database screenshot still need to be produced when cloud deployment is requested.
 
-```
-lavalust/
-├── app/
-│   ├── config/          # Application configuration (database, routes, etc.)
-│   ├── controllers/     # Controller classes
-│   ├── models/          # Model classes
-│   ├── views/           # View templates
-│   └── libraries/       # Custom libraries and helpers
-├── scheme/              # Core framework files (do not modify)
-├── public/              # Publicly accessible entry point
-│   └── index.php
-└── runtime/            # Cache, logs, and uploads (must be writable)
-```
-
----
-
-## Configuration
-
-### Database
-
-**File:** `app/config/database.php`
-
-```php
-$database['main'] = array(
-    'driver'	=> getenv('DB_DRIVER') ?: '',
-    'hostname'	=> getenv('DB_HOST') ?: '',
-    'port'		=> getenv('DB_PORT') ?: '',
-    'username'	=> getenv('DB_USER') ?: '',
-    'password'	=> getenv('DB_PASSWORD') ?: '',
-    'database'	=> getenv('DB_NAME') ?: '',
-    'charset'	=> getenv('DB_CHARSET') ?: '',
-    'dbprefix'	=> getenv('DB_PREFIX') ?: '',
-    // Optional for SQLite
-    'path'      => ''
-);
-```
-
-### Base URL
-
-**File:** `app/config/config.php`
-
-```php
-$config['base_url'] = 'http://localhost:3000/';
-```
-
----
-
-## Building a REST API
-
-LavaLust supports REST API development out of the box. Controllers can return JSON responses for API endpoints.
-
-```php
-<?php
-
-class Api extends Controller
-{
-    $this->call->library('api');
-
-    public function users()
-    {
-        $this->api->require_method('GET');
-        $auth = $this->api->require_jwt(); 
-
-        $this->call->model('User_model');
-        $users = $this->User_model->getAll();
-
-        $this->api->respond(['data' => $users]);
-    }
-}
-```
-
-Route definition:
-
-```php
-$router->get('/api/users', 'Api::users');
-```
-
----
-
-## Philosophy
-
-LavaLust is built on a single principle: **minimal core, maximum control.**
-
-Modern frameworks often add layers of abstraction that benefit large enterprise teams but get in the way of developers who want to understand exactly what their code is doing. LavaLust provides structure and utilities without hiding the underlying logic — making it an excellent choice for:
-
-- **Rapid prototyping** — Get an application running in minutes
-- **Learning MVC** — Understand how each architectural layer works
-- **Lightweight production apps** — Deploy without dragging in unused dependencies
-- **Teaching PHP development** — Clear conventions, readable source code
-
----
-
-## Documentation
-
-Full documentation is available at **[https://lavalust.netlify.app](https://lavalust.netlify.app)**
-
-Topics covered include:
-
-- Installation and server configuration
-- Routing: static, dynamic, and grouped routes
-- Controllers and request handling
-- Models and query builder
-- Views, layouts, and partials
-- Built-in libraries (sessions, form validation, file upload)
-- Helper functions
-- REST API development
-- Security best practices
-
----
-
-## Contributing
-
-Contributions are welcome. To contribute:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature-name`
-3. Commit your changes: `git commit -m "Add your feature description"`
-4. Push to your branch: `git push origin feature/your-feature-name`
-5. Open a pull request against `main`
-
-Please ensure your code follows the existing style conventions and includes relevant documentation or comments where appropriate.
-
----
-
-## Roadmap
-
-- [ ] CLI tool for generating controllers, models, and migrations
-- [ ] Middleware support
-- [ ] Improved query builder with relationship support
-- [ ] Enhanced error handling and debugging tools
-
----
-
-## License
-
-LavaLust Framework is open-source software licensed under the **[MIT License](https://opensource.org/licenses/MIT)**.
-
----
-
-## Links
-
-- **GitHub Repository:** [https://github.com/ronmarasigan/lavalust](https://github.com/ronmarasigan/lavalust)
-- **Documentation:** [https://lavalust.netlify.app](https://lavalust.netlify.app)
-- **Report an Issue:** [https://github.com/ronmarasigan/lavalust/issues](https://github.com/ronmarasigan/lavalust/issues)
+References: [LavaLust API](https://lavalust.netlify.app/docs/libraries/api.html), [Aiven PHP/MySQL connection](https://aiven.io/docs/products/mysql/howto/connect-with-php), [Render Docker](https://render.com/docs/docker), [Render environment variables and secret files](https://render.com/docs/configure-environment-variables).

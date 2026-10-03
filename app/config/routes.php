@@ -43,5 +43,34 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 |
 */
 /** @var object $router **/
+// The router answers OPTIONS before constructing controllers.
+// Load CORS settings now so browser preflight receives the allowed origin.
+load_class('Config', 'kernel')->load('api');
+load_class('Config', 'kernel')->load('middleware');
 
 $router->get('/', 'Welcome::index');
+
+$router->get('/api/health', 'ProductsController::health');
+$router->post('/api/auth/register', 'ProductsController::register');
+$router->post('/api/auth/login', 'ProductsController::login');
+$router->post('/api/auth/logout', 'ProductsController::logout');
+$router->post('/api/auth/refresh', 'ProductsController::refresh');
+$router->get('/api/auth/me', 'ProductsController::me');
+$router->group(['prefix' => '/api/products', 'middleware' => 'products'], function ($router) {
+    $router->get('/', 'ProductsController::index');
+    $router->get('/{id}', 'ProductsController::show');
+    $router->post('/', 'ProductsController::store');
+    $router->put('/{id}', 'ProductsController::update');
+    $router->patch('/{id}', 'ProductsController::update');
+    $router->delete('/{id}', 'ProductsController::destroy');
+});
+foreach (['health', 'auth/{action}', 'products', 'products/{id}'] as $path) {
+    $router->options('/api/' . $path, 'ProductsController::preflight');
+}
+
+$router->get('/create-migration/{migration_class}', 'MigrationController::create_migration');
+$router->get('/migrate', 'MigrationController::migrate');
+$router->get('/rollback', 'MigrationController::rollback');
+$router->get('/rollback-all', 'MigrationController::rollback_all');
+$router->get('/refresh', 'MigrationController::refresh');
+$router->get('/status', 'MigrationController::status');

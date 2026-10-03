@@ -16,6 +16,7 @@ class Create_refresh_tokens_table {
             return;
         }
 
+        $this->_lava->db->raw('SET SESSION default_storage_engine = InnoDB');
         $this->_lava->dbforge
             ->add_field([
                 'id' => [

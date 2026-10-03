@@ -268,6 +268,19 @@ class Database {
             PDO::ATTR_EMULATE_PREPARES   => false,
         );
 
+        if ($driver === 'mysql') {
+            $ssl_ca = $database_config['ssl_ca'] ?? '';
+            if (!empty($database_config['ssl_required']) && !$ssl_ca) {
+                throw new PDOException('DB_SSL_CA is required for this database connection.');
+            }
+            if ($ssl_ca) {
+                if (!is_readable($ssl_ca)) {
+                    throw new PDOException('The configured database CA certificate is not readable.');
+                }
+                $options[PDO::MYSQL_ATTR_SSL_CA] = $ssl_ca;
+                $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = true;
+            }
+        }
         try {
             $this->db = new PDO($dsn, $username, $password, $options);
             $this->driver = $this->db->getAttribute(PDO::ATTR_DRIVER_NAME);
@@ -363,7 +376,7 @@ class Database {
      * @param  array  $args  arguments
      * @return mixed
      */
-    public function raw($query, $args = array())
+    public function raw($query, $args = array(), bool $throw_exception = false)
     {
         $this->reset_query();
         $query = trim($query);
@@ -387,6 +400,7 @@ class Database {
             }
             return $stmt;
         } catch (Exception $e) {
+            if ($throw_exception) throw $e;
             $error = load_class('Errors', 'kernel');
             $error->show_database_error(
                 $e->getMessage(),
